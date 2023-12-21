@@ -12,7 +12,7 @@ import {VRFCoordinatorV2Mock} from "../mocks/VRFCoordinatorV2Mock.sol";
 import {CreateSubscription} from "../../script/Interactions.s.sol";
 
 contract RaffleTest is StdCheats, Test {
-    /* Errors */
+    /* Events */
     event RequestedRaffleWinner(uint256 indexed requestId);
     event RaffleEnter(address indexed player);
     event WinnerPicked(address indexed player);
@@ -48,15 +48,14 @@ contract RaffleTest is StdCheats, Test {
         ) = helperConfig.activeNetworkConfig();
     }
 
-    function testRaffleInitializesInOpenState() public view {
+    function test_RaffleInitializesInOpenState() public view {
         assert(raffle.getRaffleState() == Raffle.RaffleState.OPEN);
     }
 
-    /////////////////////////
-    // enterRaffle         //
-    /////////////////////////
-
-    function testRaffleRevertsWHenYouDontPayEnought() public {
+    // ================================================================
+    // │                         ENTER RAFFLE                         │
+    // ================================================================
+    function test_RaffleRevertsWHenYouDoNotPayEnough() public {
         // Arrange
         vm.prank(PLAYER);
         // Act / Assert
@@ -64,7 +63,7 @@ contract RaffleTest is StdCheats, Test {
         raffle.enterRaffle();
     }
 
-    function testRaffleRecordsPlayerWhenTheyEnter() public {
+    function test_RaffleRecordsPlayerWhenTheyEnter() public {
         // Arrange
         vm.prank(PLAYER);
         // Act
@@ -74,22 +73,22 @@ contract RaffleTest is StdCheats, Test {
         assert(playerRecorded == PLAYER);
     }
 
-    function testEmitsEventOnEntrance() public {
+    function test_EmitsEventOnEntrance() public {
         // Arrange
         vm.prank(PLAYER);
 
         // Act / Assert
-        vm.expectEmit(true, false, false, false, address(raffle));
+        vm.expectEmit(true, false, false, false, address(raffle)); // vm.expectEmit(topic1, topic2, topic3, checkData, address(raffle));
         emit RaffleEnter(PLAYER);
         raffle.enterRaffle{value: raffleEntranceFee}();
     }
 
-    function testDontAllowPlayersToEnterWhileRaffleIsCalculating() public {
+    function test_DoNotAllowPlayersToEnterWhileRaffleIsCalculating() public {
         // Arrange
         vm.prank(PLAYER);
         raffle.enterRaffle{value: raffleEntranceFee}();
         vm.warp(block.timestamp + automationUpdateInterval + 1);
-        vm.roll(block.number + 1);
+        vm.roll(block.number + 1); // This isn't required for the test to pass, but good practice to roll the block after a warp
         raffle.performUpkeep("");
 
         // Act / Assert
@@ -98,10 +97,10 @@ contract RaffleTest is StdCheats, Test {
         raffle.enterRaffle{value: raffleEntranceFee}();
     }
 
-    /////////////////////////
-    // checkUpkeep         //
-    /////////////////////////
-    function testCheckUpkeepReturnsFalseIfItHasNoBalance() public {
+    // ================================================================
+    // │                         CHECK UPKEEP                         │
+    // ================================================================
+    function test_CheckUpkeepReturnsFalseIfItHasNoBalance() public {
         // Arrange
         vm.warp(block.timestamp + automationUpdateInterval + 1);
         vm.roll(block.number + 1);
@@ -113,25 +112,52 @@ contract RaffleTest is StdCheats, Test {
         assert(!upkeepNeeded);
     }
 
-    function testCheckUpkeepReturnsFalseIfRaffleIsntOpen() public {
+    // function testCheckUpkeepReturnsFalseIfRaffleIsNotOpen() public {
+    //     // Arrange
+    //     vm.prank(PLAYER);
+    //     raffle.enterRaffle{value: raffleEntranceFee}();
+    //     vm.warp(block.timestamp + automationUpdateInterval + 1);
+    //     vm.roll(block.number + 1);
+    //     raffle.performUpkeep("");
+    //     Raffle.RaffleState raffleState = raffle.getRaffleState();
+    //     // Act
+    //     (bool upkeepNeeded, ) = raffle.checkUpkeep("");
+    //     // Assert
+    //     assert(raffleState == Raffle.RaffleState.CALCULATING);
+    //     assert(upkeepNeeded == false);
+    // }
+
+    function test_CheckUpkeepReturnsFalseIfEnoughTimeHasNotPassed() public {
         // Arrange
         vm.prank(PLAYER);
         raffle.enterRaffle{value: raffleEntranceFee}();
-        vm.warp(block.timestamp + automationUpdateInterval + 1);
+        vm.warp(block.timestamp + automationUpdateInterval - 1);
         vm.roll(block.number + 1);
-        raffle.performUpkeep("");
         Raffle.RaffleState raffleState = raffle.getRaffleState();
+
         // Act
         (bool upkeepNeeded, ) = raffle.checkUpkeep("");
+
         // Assert
-        assert(raffleState == Raffle.RaffleState.CALCULATING);
+        assert(raffleState == Raffle.RaffleState.OPEN);
         assert(upkeepNeeded == false);
+
+        // Get values to confirm revert error is exatly as expected
+        bytes memory encodedParameters = abi.encode(
+            address(raffle).balance,
+            raffle.getNumberOfPlayers(),
+            raffleState
+        );
+        bytes4 selector = Raffle.Raffle__UpkeepNotNeeded.selector;
+        bytes memory encodedError = abi.encodePacked(
+            selector,
+            encodedParameters
+        );
+        vm.expectRevert(encodedError);
+        raffle.performUpkeep("");
     }
 
-    // Can you implement this?
-    function testCheckUpkeepReturnsFalseIfEnoughTimeHasntPassed() public {}
-
-    function testCheckUpkeepReturnsTrueWhenParametersGood() public {
+    function test_CheckUpkeepReturnsTrueWhenParametersGood() public {
         // Arrange
         vm.prank(PLAYER);
         raffle.enterRaffle{value: raffleEntranceFee}();
@@ -145,11 +171,10 @@ contract RaffleTest is StdCheats, Test {
         assert(upkeepNeeded);
     }
 
-    /////////////////////////
-    // performUpkeep       //
-    /////////////////////////
-
-    function testPerformUpkeepCanOnlyRunIfCheckUpkeepIsTrue() public {
+    // ================================================================
+    // │                        PERFORM UPKEEP                        │
+    // ================================================================
+    function test_PerformUpkeepCanOnlyRunIfCheckUpkeepIsTrue() public {
         // Arrange
         vm.prank(PLAYER);
         raffle.enterRaffle{value: raffleEntranceFee}();
@@ -161,7 +186,7 @@ contract RaffleTest is StdCheats, Test {
         raffle.performUpkeep("");
     }
 
-    function testPerformUpkeepRevertsIfCheckUpkeepIsFalse() public {
+    function test_PerformUpkeepRevertsIfCheckUpkeepIsFalse() public {
         // Arrange
         uint256 currentBalance = 0;
         uint256 numPlayers = 0;
@@ -178,7 +203,7 @@ contract RaffleTest is StdCheats, Test {
         raffle.performUpkeep("");
     }
 
-    function testPerformUpkeepUpdatesRaffleStateAndEmitsRequestId() public {
+    function test_PerformUpkeepUpdatesRaffleStateAndEmitsRequestId() public {
         // Arrange
         vm.prank(PLAYER);
         raffle.enterRaffle{value: raffleEntranceFee}();
@@ -198,10 +223,9 @@ contract RaffleTest is StdCheats, Test {
         assert(uint(raffleState) == 1); // 0 = open, 1 = calculating
     }
 
-    /////////////////////////
-    // fulfillRandomWords //
-    ////////////////////////
-
+    // ================================================================
+    // │                       FULFILL RANDOMWORDS                     │
+    // ================================================================
     modifier raffleEntered() {
         vm.prank(PLAYER);
         raffle.enterRaffle{value: raffleEntranceFee}();
@@ -217,7 +241,7 @@ contract RaffleTest is StdCheats, Test {
         _;
     }
 
-    function testFulfillRandomWordsCanOnlyBeCalledAfterPerformUpkeep()
+    function test_FulfillRandomWordsCanOnlyBeCalledAfterPerformUpkeep()
         public
         raffleEntered
         skipFork
@@ -239,7 +263,7 @@ contract RaffleTest is StdCheats, Test {
         );
     }
 
-    function testFulfillRandomWordsPicksAWinnerResetsAndSendsMoney()
+    function test_FulfillRandomWordsPicksAWinnerResetsAndSendsMoney()
         public
         raffleEntered
         skipFork

@@ -8,7 +8,7 @@ import {AddConsumer, CreateSubscription, FundSubscription} from "./Interactions.
 
 contract DeployRaffle is Script {
     function run() external returns (Raffle, HelperConfig) {
-        HelperConfig helperConfig = new HelperConfig(); // This comes with our mocks!
+        HelperConfig helperConfig = new HelperConfig();
         AddConsumer addConsumer = new AddConsumer();
         (
             uint64 subscriptionId,
