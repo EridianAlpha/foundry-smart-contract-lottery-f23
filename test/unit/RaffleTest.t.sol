@@ -112,20 +112,20 @@ contract RaffleTest is StdCheats, Test {
         assert(!upkeepNeeded);
     }
 
-    // function testCheckUpkeepReturnsFalseIfRaffleIsNotOpen() public {
-    //     // Arrange
-    //     vm.prank(PLAYER);
-    //     raffle.enterRaffle{value: raffleEntranceFee}();
-    //     vm.warp(block.timestamp + automationUpdateInterval + 1);
-    //     vm.roll(block.number + 1);
-    //     raffle.performUpkeep("");
-    //     Raffle.RaffleState raffleState = raffle.getRaffleState();
-    //     // Act
-    //     (bool upkeepNeeded, ) = raffle.checkUpkeep("");
-    //     // Assert
-    //     assert(raffleState == Raffle.RaffleState.CALCULATING);
-    //     assert(upkeepNeeded == false);
-    // }
+    function testCheckUpkeepReturnsFalseIfRaffleIsNotOpen() public {
+        // Arrange
+        vm.prank(PLAYER);
+        raffle.enterRaffle{value: raffleEntranceFee}();
+        vm.warp(block.timestamp + automationUpdateInterval + 1);
+        vm.roll(block.number + 1);
+        raffle.performUpkeep("");
+        Raffle.RaffleState raffleState = raffle.getRaffleState();
+        // Act
+        (bool upkeepNeeded, ) = raffle.checkUpkeep("");
+        // Assert
+        assert(raffleState == Raffle.RaffleState.CALCULATING);
+        assert(upkeepNeeded == false);
+    }
 
     function test_CheckUpkeepReturnsFalseIfEnoughTimeHasNotPassed() public {
         // Arrange
@@ -142,18 +142,15 @@ contract RaffleTest is StdCheats, Test {
         assert(raffleState == Raffle.RaffleState.OPEN);
         assert(upkeepNeeded == false);
 
-        // Get values to confirm revert error is exatly as expected
-        bytes memory encodedParameters = abi.encode(
-            address(raffle).balance,
-            raffle.getNumberOfPlayers(),
-            raffleState
+        // Get values to confirm revert error is exactly as expected
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                Raffle.Raffle__UpkeepNotNeeded.selector,
+                address(raffle).balance,
+                raffle.getNumberOfPlayers(),
+                raffleState
+            )
         );
-        bytes4 selector = Raffle.Raffle__UpkeepNotNeeded.selector;
-        bytes memory encodedError = abi.encodePacked(
-            selector,
-            encodedParameters
-        );
-        vm.expectRevert(encodedError);
         raffle.performUpkeep("");
     }
 
@@ -182,7 +179,7 @@ contract RaffleTest is StdCheats, Test {
         vm.roll(block.number + 1);
 
         // Act / Assert
-        // It doesnt revert
+        // Doesn't need an assert if the check is just to make sure that it does not revert
         raffle.performUpkeep("");
     }
 
@@ -218,7 +215,6 @@ contract RaffleTest is StdCheats, Test {
 
         // Assert
         Raffle.RaffleState raffleState = raffle.getRaffleState();
-        // requestId = raffle.getLastRequestId();
         assert(uint256(requestId) > 0);
         assert(uint(raffleState) == 1); // 0 = open, 1 = calculating
     }
@@ -241,24 +237,12 @@ contract RaffleTest is StdCheats, Test {
         _;
     }
 
-    function test_FulfillRandomWordsCanOnlyBeCalledAfterPerformUpkeep()
-        public
-        raffleEntered
-        skipFork
-    {
-        // Arrange
-        // Act / Assert
+    function test_FulfillRandomWordsCanOnlyBeCalledAfterPerformUpkeep(
+        uint256 randomRequestId
+    ) public raffleEntered skipFork {
         vm.expectRevert("nonexistent request");
-        // vm.mockCall could be used here...
         VRFCoordinatorV2Mock(vrfCoordinatorV2).fulfillRandomWords(
-            0,
-            address(raffle)
-        );
-
-        vm.expectRevert("nonexistent request");
-
-        VRFCoordinatorV2Mock(vrfCoordinatorV2).fulfillRandomWords(
-            1,
+            randomRequestId,
             address(raffle)
         );
     }
@@ -280,7 +264,7 @@ contract RaffleTest is StdCheats, Test {
             i++
         ) {
             address player = address(uint160(i));
-            hoax(player, 1 ether); // deal 1 eth to the player
+            hoax(player, STARTING_USER_BALANCE);
             raffle.enterRaffle{value: raffleEntranceFee}();
         }
 

@@ -12,6 +12,7 @@ broadcast/
 # Foundry Files
 .gas-snapshot
 lcov.info
+coverage-report.txt
 
 # Mac OS Files
 .DS_Store
